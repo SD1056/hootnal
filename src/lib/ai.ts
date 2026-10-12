@@ -169,6 +169,7 @@ async function readError(res: Response) {
   if (res.status === 401 || res.status === 403) return `API 키가 올바르지 않거나 권한이 없어요. (${res.status})`
   if (res.status === 404) return `모델 이름을 찾을 수 없어요. 설정에서 모델명을 확인해 주세요. (${detail})`
   if (res.status === 429) return '요청 한도를 초과했어요. 잠시 후 다시 시도해 주세요.'
+  if (res.status === 503 || res.status === 529) return 'AI 서버가 지금 많이 붐벼요. 잠시 후 다시 시도해 주세요.'
   return `AI 요청에 실패했어요. (${res.status}) ${detail}`.trim()
 }
 
@@ -227,39 +228,81 @@ function normalize(raw: unknown, settings: AiSettings): Analysis {
   }
 }
 
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504, 529])
+const RETRY_DELAYS_MS = [1200, 2500]
+
+/** 과부하 시 같은 제공사의 더 가벼운 모델로 한 번 더 시도한다. */
+const FALLBACK_MODEL: Partial<Record<Provider, Record<string, string>>> = {
+  gemini: {
+    'gemini-flash-latest': 'gemini-flash-lite-latest',
+    'gemini-2.5-flash': 'gemini-2.5-flash-lite',
+  },
+  openai: {
+    'gpt-4o': 'gpt-4o-mini',
+  },
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function callProvider(settings: AiSettings, system: string, user: string) {
+  try {
+    if (settings.provider === 'openai') return await callOpenAI(settings, system, user)
+    if (settings.provider === 'anthropic') return await callAnthropic(settings, system, user)
+    return await callGemini(settings, system, user)
+  } catch (err) {
+    if (err instanceof AiError) throw err
+    throw new AiError('AI 서버에 연결하지 못했어요. 네트워크 상태나 브라우저의 광고 차단 확장을 확인해 주세요.')
+  }
+}
+
+/**
+ * 일시적 오류(과부하, 한도 초과, 5xx)는 짧게 기다렸다가 재시도하고,
+ * 그래도 안 되면 대체 모델로 마지막 한 번을 더 시도한다.
+ * 반환값에는 실제로 응답한 모델명이 담긴다.
+ */
+async function callWithRetry(
+  settings: AiSettings,
+  system: string,
+  user: string,
+): Promise<{ text: string | undefined; model: string }> {
+  let lastError: AiError | undefined
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return { text: await callProvider(settings, system, user), model: settings.model }
+    } catch (err) {
+      if (!(err instanceof AiError) || !err.status || !RETRYABLE_STATUS.has(err.status)) throw err
+      lastError = err
+      if (attempt < RETRY_DELAYS_MS.length) await sleep(RETRY_DELAYS_MS[attempt])
+    }
+  }
+
+  const fallback = FALLBACK_MODEL[settings.provider]?.[settings.model]
+  if (fallback) {
+    try {
+      return { text: await callProvider({ ...settings, model: fallback }, system, user), model: fallback }
+    } catch (err) {
+      if (err instanceof AiError) throw err
+    }
+  }
+  throw lastError ?? new AiError('AI 요청에 실패했어요.')
+}
+
 export async function analyzeWithAi(
   input: PurchaseInput,
   facts: FinanceFacts,
   settings: AiSettings,
 ): Promise<Analysis> {
   const user = buildUserPrompt(input, facts)
-  let text: string | undefined
-  try {
-    if (settings.provider === 'openai') text = await callOpenAI(settings, SYSTEM_PROMPT, user)
-    else if (settings.provider === 'anthropic') text = await callAnthropic(settings, SYSTEM_PROMPT, user)
-    else text = await callGemini(settings, SYSTEM_PROMPT, user)
-  } catch (err) {
-    if (err instanceof AiError) throw err
-    throw new AiError('AI 서버에 연결하지 못했어요. 네트워크 상태나 브라우저의 광고 차단 확장을 확인해 주세요.')
-  }
+  const { text, model } = await callWithRetry(settings, SYSTEM_PROMPT, user)
   if (!text) throw new AiError('AI가 빈 응답을 보냈어요. 다시 시도해 주세요.')
-  return normalize(extractJson(text), settings)
+  return normalize(extractJson(text), { ...settings, model })
 }
 
 /** 설정 화면의 "연결 테스트"용 최소 요청 */
 export async function testConnection(settings: AiSettings): Promise<string> {
   const system =
     '당신은 연결 테스트 응답기입니다. 반드시 {"ok": true, "greeting": "짧은 한국어 인사"} 형태의 JSON만 출력하세요.'
-  const user = '연결 테스트'
-  let text: string | undefined
-  try {
-    if (settings.provider === 'openai') text = await callOpenAI(settings, system, user)
-    else if (settings.provider === 'anthropic') text = await callAnthropic(settings, system, user)
-    else text = await callGemini(settings, system, user)
-  } catch (err) {
-    if (err instanceof AiError) throw err
-    throw new AiError('AI 서버에 연결하지 못했어요. 네트워크 상태를 확인해 주세요.')
-  }
+  const { text } = await callWithRetry(settings, system, '연결 테스트')
   const parsed = extractJson(text ?? '{}') as { greeting?: string }
   return parsed.greeting ?? '연결되었어요.'
 }

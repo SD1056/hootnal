@@ -213,7 +213,7 @@ export default function App() {
             {error && (
               <Alert variant="destructive" className="mb-4">
                 <TriangleAlertIcon />
-                <AlertTitle>AI 연결에 문제가 있었어요</AlertTitle>
+                <AlertTitle>AI 분석을 완료하지 못했어요</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
                 <AlertAction>
                   <Button variant="outline" size="xs" onClick={() => setSettingsOpen(true)}>
