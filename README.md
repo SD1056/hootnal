@@ -12,12 +12,12 @@
 
 ## AI 분석
 
-사이트에는 **기본 Gemini 키가 내장**되어 있어 방문자가 아무 설정 없이 바로 AI 분석을 쓸 수 있습니다. 키와 모델은 `.env`에서 읽습니다.
+사이트에는 **기본 Gemini 키가 내장**되어 있어 방문자가 아무 설정 없이 바로 AI 분석을 쓸 수 있습니다. 키는 빌드 시점에 환경 변수로 주입됩니다.
 
-```
-VITE_GEMINI_API_KEY=...
-VITE_GEMINI_MODEL=gemini-flash-latest
-```
+- **프로덕션(GitHub Pages)**: 저장소 **Settings → Secrets and variables → Actions**에 `VITE_GEMINI_API_KEY` 시크릿을 추가하면 배포 워크플로가 빌드에 넣습니다. 모델을 바꾸려면 같은 곳의 **Variables**에 `VITE_GEMINI_MODEL`을 추가하세요 (기본 `gemini-flash-latest`).
+- **로컬**: `.env.example`을 `.env`로 복사해 값을 채우세요. `.env`는 git에 올라가지 않습니다.
+
+**키를 절대 저장소에 커밋하지 마세요.** 공개 저장소에 올라간 Google API 키는 Google의 유출 스캐너가 자동으로 비활성화합니다.
 
 방문자가 다른 제공사나 자기 키를 쓰고 싶으면 우측 상단 **AI 설정**에서 직접 넣을 수 있고, 그 경우 그 키가 우선합니다(`localStorage`에만 저장). 지원 제공사:
 

@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 terminals/
+
+# Local AI key for dev builds (production uses a GitHub Actions secret)
+.env
+.env.*
+!.env.example

@@ -39,9 +39,13 @@ jobs:
             echo "path=/$REPO/" >> "$GITHUB_OUTPUT"
           fi
 
+      # The Gemini key is injected from a repository secret at build time so it
+      # never lands in git history (Google auto-revokes keys it finds in public repos).
       - run: npm run build
         env:
           BASE_PATH: ${{ steps.base.outputs.path }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_GEMINI_MODEL: ${{ vars.VITE_GEMINI_MODEL || 'gemini-flash-latest' }}
 
       - uses: actions/configure-pages@v5
 
