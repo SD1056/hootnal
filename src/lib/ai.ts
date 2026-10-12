@@ -4,7 +4,7 @@ import type { AiSettings, Analysis, FinanceFacts, Provider, PurchaseInput, Verdi
 export const PROVIDERS: { value: Provider; label: string; defaultModel: string; keyHint: string }[] = [
   { value: 'openai', label: 'OpenAI', defaultModel: 'gpt-4o-mini', keyHint: 'sk-...' },
   { value: 'anthropic', label: 'Anthropic (Claude)', defaultModel: 'claude-sonnet-4-5', keyHint: 'sk-ant-...' },
-  { value: 'gemini', label: 'Google Gemini', defaultModel: 'gemini-2.0-flash', keyHint: 'AIza...' },
+  { value: 'gemini', label: 'Google Gemini', defaultModel: 'gemini-flash-latest', keyHint: 'AIza...' },
 ]
 
 export function defaultModelFor(provider: Provider) {

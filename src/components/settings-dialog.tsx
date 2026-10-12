@@ -29,22 +29,32 @@ interface SettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   settings: AiSettings | null
+  /** 사이트에 내장된 기본 설정 (없으면 null) */
+  builtIn: AiSettings | null
   onSave: (settings: AiSettings) => void
   onClear: () => void
 }
 
-export function SettingsDialog({ open, onOpenChange, settings, onSave, onClear }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, settings, builtIn, onSave, onClear }: SettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         {/* Remounting on open resets the draft fields to the saved settings. */}
-        {open && <SettingsForm settings={settings} onSave={onSave} onClear={onClear} onOpenChange={onOpenChange} />}
+        {open && (
+          <SettingsForm
+            settings={settings}
+            builtIn={builtIn}
+            onSave={onSave}
+            onClear={onClear}
+            onOpenChange={onOpenChange}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
 }
 
-function SettingsForm({ settings, onSave, onClear, onOpenChange }: Omit<SettingsDialogProps, 'open'>) {
+function SettingsForm({ settings, builtIn, onSave, onClear, onOpenChange }: Omit<SettingsDialogProps, 'open'>) {
   const [provider, setProvider] = useState<Provider>(settings?.provider ?? 'openai')
   const [apiKey, setApiKey] = useState(settings?.apiKey ?? '')
   const [model, setModel] = useState(settings?.model ?? defaultModelFor(settings?.provider ?? 'openai'))
@@ -92,12 +102,23 @@ function SettingsForm({ settings, onSave, onClear, onOpenChange }: Omit<Settings
           AI 설정
         </DialogTitle>
         <DialogDescription>
-          API 키를 연결하면 AI가 물건과 가격, 상황을 읽고 맞춤 판단을 내려줘요. 키가 없어도 기본 분석은 계속 쓸 수
-          있어요.
+          {builtIn
+            ? '훗날에는 기본 AI 키가 내장되어 있어서 따로 설정하지 않아도 AI 분석이 동작해요. 다른 제공사나 내 키를 쓰고 싶을 때만 아래를 채워 주세요.'
+            : 'API 키를 연결하면 AI가 물건과 가격, 상황을 읽고 맞춤 판단을 내려줘요. 키가 없어도 기본 분석은 계속 쓸 수 있어요.'}
         </DialogDescription>
       </DialogHeader>
 
       <div className="flex flex-col gap-4">
+        {builtIn && !settings && (
+          <Alert>
+            <CheckCircle2Icon className="text-verdict-save" />
+            <AlertTitle>기본 키 사용 중</AlertTitle>
+            <AlertDescription>
+              현재 {PROVIDERS.find((p) => p.value === builtIn.provider)?.label} · {builtIn.model} 으로 분석하고 있어요.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid gap-1.5">
           <Label htmlFor="provider">AI 제공사</Label>
           <Select value={provider} onValueChange={(v) => handleProviderChange(v as Provider)}>
@@ -186,7 +207,7 @@ function SettingsForm({ settings, onSave, onClear, onOpenChange }: Omit<Settings
                 onOpenChange(false)
               }}
             >
-              키 삭제
+              {builtIn ? '내 키 삭제 (기본 키로 복귀)' : '키 삭제'}
             </Button>
           )}
           <Button variant="outline" onClick={handleTest} disabled={!canSave || testing}>

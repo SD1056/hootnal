@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AiError, analyzeWithAi } from '@/lib/ai'
+import { BUILTIN_SETTINGS } from '@/lib/config'
 import { computeFinanceFacts } from '@/lib/finance'
 import { analyzeLocally } from '@/lib/local-analyzer'
 import { clearSettings, loadHistory, loadSettings, newId, saveHistory, saveSettings } from '@/lib/storage'
@@ -90,7 +91,10 @@ function EmptyState({ aiEnabled, onOpenSettings }: { aiEnabled: boolean; onOpenS
 }
 
 export default function App() {
-  const [settings, setSettings] = useState<AiSettings | null>(() => loadSettings())
+  const [userSettings, setUserSettings] = useState<AiSettings | null>(() => loadSettings())
+  // 방문자가 직접 넣은 키가 있으면 그것을, 없으면 사이트에 내장된 기본 키를 쓴다.
+  const settings = userSettings ?? BUILTIN_SETTINGS
+  const usingBuiltIn = userSettings === null && BUILTIN_SETTINGS !== null
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [history, setHistory] = useState<DecisionRecord[]>(() => loadHistory())
   const [loading, setLoading] = useState(false)
@@ -179,7 +183,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Badge variant={settings ? 'secondary' : 'outline'} className="hidden sm:inline-flex">
               {settings ? <BotIcon /> : <BotOffIcon />}
-              {settings ? `AI 연결됨 · ${settings.model}` : 'AI 미연결 · 기본 분석'}
+              {settings ? `AI 연결됨 · ${settings.model}${usingBuiltIn ? ' · 기본 키' : ''}` : 'AI 미연결 · 기본 분석'}
             </Badge>
             <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
               <SettingsIcon />
@@ -260,14 +264,15 @@ export default function App() {
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        settings={settings}
+        settings={userSettings}
+        builtIn={BUILTIN_SETTINGS}
         onSave={(s) => {
           saveSettings(s)
-          setSettings(s)
+          setUserSettings(s)
         }}
         onClear={() => {
           clearSettings()
-          setSettings(null)
+          setUserSettings(null)
         }}
       />
     </div>
